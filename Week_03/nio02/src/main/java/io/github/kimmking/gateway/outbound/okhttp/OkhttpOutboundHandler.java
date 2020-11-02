@@ -4,6 +4,7 @@ import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 import com.squareup.okhttp.Response;
 import io.github.kimmking.gateway.outbound.OutboundHandler;
+import io.github.kimmking.gateway.router.HttpEndpointRouter;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,12 +23,12 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 public class OkhttpOutboundHandler implements OutboundHandler {
-    private String backendUrl;
-    private OkHttpClient okHttpClient;
-    private ExecutorService proxyService;
+    private final HttpEndpointRouter router;
+    private final OkHttpClient okHttpClient;
+    private final ExecutorService proxyService;
 
-    public OkhttpOutboundHandler(String backendUrl) {
-        this.backendUrl = backendUrl;
+    public OkhttpOutboundHandler(HttpEndpointRouter router) {
+        this.router = router;
         this.okHttpClient = new OkHttpClient();
         this.proxyService = getExecutorThreadPool();
     }
@@ -40,9 +41,8 @@ public class OkhttpOutboundHandler implements OutboundHandler {
     }
 
     public void handle(final FullHttpRequest inbound, final ChannelHandlerContext ctx) {
-        final String url = this.backendUrl + inbound.uri();
         proxyService.submit(() -> {
-            Request request = new Request.Builder().url(url).build();
+            Request request = new Request.Builder().url(router.route(inbound.uri())).build();
             try {
                 Response response = okHttpClient.newCall(request).execute();
                 handleResponse(inbound, ctx, response);
